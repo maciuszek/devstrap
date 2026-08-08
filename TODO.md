@@ -1,0 +1,17 @@
+# TODO
+
+## Devcontainer template hardening
+
+- [ ] Remove `vscode`'s passwordless sudo in `templates/container/claude/Dockerfile`
+      (e.g. `rm -f /etc/sudoers.d/vscode /etc/sudoers.d/*-vscode && deluser vscode sudo`).
+      The base image grants NOPASSWD sudo by default; that's the actual
+      root-of-trust today, since `claude-managed-settings.json`'s
+      `Bash(sudo *)` deny rule is a text match on the command string, not an
+      OS control (e.g. an absolute path to the sudo binary sidesteps it).
+      Without this, a bypass of that one rule undoes every other deny rule,
+      including rewriting the managed-settings file itself. Apply the same
+      change to the root `.devcontainer/Dockerfile` to keep dogfooding in sync.
+- [ ] Add `Write(//etc/**)` to the `deny` list in `claude-managed-settings.json`
+      alongside the existing `Edit(//etc/**)`, so creating new files under
+      `/etc` via the Write tool is blocked too, not just editing existing ones.
+</content>
