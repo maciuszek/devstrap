@@ -1,5 +1,41 @@
 # Installing devstrap on NixOS
 
+## NixOS baseline
+
+The essential NixOS pieces are the same ones used by `setup_nixos`: Docker is
+enabled, the development user can access the Docker daemon, VS Code is
+installed, and the Dev Containers extension is enabled. A minimal equivalent is
+roughly:
+
+```nix
+# NixOS
+virtualisation.docker.enable = true;
+
+users.users.myuser.extraGroups = [
+  "docker"
+];
+```
+
+And, when managing VS Code through Home Manager:
+
+```nix
+programs.vscode = {
+  enable = true;
+
+  profiles.default.extensions = with pkgs.vscode-extensions; [
+    ms-vscode-remote.remote-containers
+  ];
+};
+```
+
+After adding a user to the `docker` group, log out and back in (or reboot) so
+the new group membership is active. A quick host-side check is:
+
+```bash
+docker info
+code --version
+```
+
 `install.sh` installs the runtime under `~/.local/share/devstrap` and creates:
 
 ```text
@@ -15,7 +51,8 @@ From the devstrap repository:
 ```
 
 Re-running the command updates the installed `bin/` and `templates/` from the
-current checkout.
+current checkout. If a previous install is already there, `install.sh` lists
+what it's about to replace and asks for confirmation before removing anything.
 
 Then verify:
 

@@ -28,39 +28,9 @@ is opened in the generated Claude Dev Container, Nix is already provided there.
 
 ### NixOS baseline
 
-The essential NixOS pieces are the same ones used by `setup_nixos`: Docker is
-enabled, the development user can access the Docker daemon, VS Code is
-installed, and the Dev Containers extension is enabled. A minimal equivalent is
-roughly:
-
-```nix
-# NixOS
-virtualisation.docker.enable = true;
-
-users.users.myuser.extraGroups = [
-  "docker"
-];
-```
-
-And, when managing VS Code through Home Manager:
-
-```nix
-programs.vscode = {
-  enable = true;
-
-  profiles.default.extensions = with pkgs.vscode-extensions; [
-    ms-vscode-remote.remote-containers
-  ];
-};
-```
-
-After adding a user to the `docker` group, log out and back in (or reboot) so
-the new group membership is active. A quick host-side check is:
-
-```bash
-docker info
-code --version
-```
+For a NixOS/Home Manager equivalent of the prerequisites above (Docker, VS
+Code, and the Dev Containers extension), see
+[docs/NIXOS_INSTALL.md](docs/NIXOS_INSTALL.md#nixos-baseline).
 
 ## Usage
 
