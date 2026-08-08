@@ -24,6 +24,23 @@ teardown() {
   grep -q '/workspace/both' "$TMP/both/.devcontainer/devcontainer.json"
 }
 
+@test "bash shell template creates a shellcheck/bats flake" {
+  mkdir "$TMP/bash-shell"
+  run "$ROOT/bin/devstrap" --shell bash --project-dir "$TMP/bash-shell"
+  [ "$status" -eq 0 ]
+  [ -f "$TMP/bash-shell/flake.nix" ]
+  grep -q "shellcheck" "$TMP/bash-shell/flake.nix"
+  grep -q "bats" "$TMP/bash-shell/flake.nix"
+}
+
+@test "unknown shell template is rejected" {
+  mkdir "$TMP/project"
+  run "$ROOT/bin/devstrap" --shell rust --project-dir "$TMP/project"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"unknown shell template: rust"* ]]
+  [ ! -e "$TMP/project/flake.nix" ]
+}
+
 @test "container-only must coexist with an existing dev shell" {
   mkdir "$TMP/container-only"
   touch "$TMP/container-only/flake.nix" "$TMP/container-only/flake.lock"

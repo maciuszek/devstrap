@@ -125,8 +125,13 @@ generic policy.
 ### `--shell nix`
 
 Creates a minimal `flake.nix` with an `x86_64-linux` development shell based on
-NixOS 26.05 nixpkgs. It starts with `git` and `shellcheck`; projects are expected
-to customize their own tool list.
+NixOS 26.05 nixpkgs, with `nixfmt` and `shellcheck`; projects are expected to
+customize their own tool list.
+
+### `--shell bash`
+
+Creates the same kind of `flake.nix`, curated for bash-script-heavy projects
+instead: `shellcheck` and `bats`.
 
 After generation:
 
@@ -156,7 +161,7 @@ generates for other projects.
 The initial version deliberately stays small:
 
 - one container template: `claude`
-- one dev-shell template: `nix`
+- two dev-shell templates: `nix`, `bash`
 - explicit flags
 - no overwrite/merge behavior
 

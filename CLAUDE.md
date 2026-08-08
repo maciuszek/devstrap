@@ -56,11 +56,16 @@ Install it onto PATH:
     `devcontainer-lock.json`, and `devcontainer.json` (contains
     `__PROJECT_NAME__` placeholders substituted via `sed` at generation time,
     since JSON has no native templating).
-  - `templates/shell/nix/flake.nix` — copied verbatim, no substitution.
+  - `templates/shell/<name>/flake.nix` (currently `nix`, `bash`) — copied
+    verbatim per the chosen `--shell` name, no substitution. `nix` is a
+    generic starter (`nixfmt`, `shellcheck`); `bash` is curated for
+    bash-script-heavy projects (`shellcheck`, `bats`).
 - **`install.sh`** — copies `bin/` and `templates/` into
   `~/.local/share/devstrap` and symlinks `~/bin/devstrap` to the installed
-  runtime. This repo's own `bin/devstrap` resolves symlinks precisely so this
-  install layout works (runtime and templates must stay siblings).
+  runtime. Refuses a non-absolute or `/` `DEST_DIR` before it ever runs `rm
+  -rf`, and prompts for confirmation before replacing an existing install.
+  This repo's own `bin/devstrap` resolves symlinks precisely so this install
+  layout works (runtime and templates must stay siblings).
 - **`.devcontainer/`, `flake.nix`** at the repo root — devstrap dogfoods its
   own `claude` container template and `nix` shell template for its own
   development.
@@ -83,6 +88,14 @@ Generates a Dev Container that isolates an agent to a single project:
   Code feature, with `overrideFeatureInstallOrder` ensuring Node installs
   first.
 
+The deny rules above are Claude Code's own text-pattern permission checks,
+not an OS-level control — see `TODO.md` for known, not-yet-applied hardening
+(e.g. the base image's default passwordless `sudo` for `vscode` is the actual
+root-of-trust today, since it can be reached by paths the `Bash(sudo *)`
+pattern doesn't match). The container's bind-mount isolation (only the one
+repo is exposed, no docker socket) is the real hard boundary; the deny rules
+are a defense-in-depth layer on top of it, not a substitute for it.
+
 Any change to a template must stay in sync with the assertions in
 `tests/devstrap.bats` (e.g. the `"name"` and workspace path substitution
 checks, the exact list of files created per component).
@@ -91,8 +104,8 @@ checks, the exact list of files created per component).
 
 - Bash scripts use `set -euo pipefail` and `readonly`-style resolved paths;
   follow this in any new script.
-- Keep the tool intentionally minimal: one container template (`claude`), one
-  shell template (`nix`), explicit flags, no merge/overwrite behavior. New
-  templates should be added only when a real consuming project needs them,
-  not speculatively.
+- Keep the tool intentionally minimal: one container template (`claude`), two
+  shell templates (`nix`, `bash`), explicit flags, no merge/overwrite
+  behavior. New templates should be added only when a real consuming project
+  needs them, not speculatively.
 </content>
