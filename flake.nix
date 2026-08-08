@@ -12,6 +12,7 @@
     in {
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
+          bats
           shellcheck
           unzip
           zip

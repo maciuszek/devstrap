@@ -11,22 +11,23 @@ project directory. It is a generator/installer, not an application — the
 
 ## Commands
 
-Run the test suite:
+Run the test suite (`bats`, available via `flake.nix`'s dev shell):
 
 ```bash
-tests/test-devstrap.sh
+nix develop   # enters a shell with bats, shellcheck, unzip, zip
+bats tests/devstrap.bats
 ```
 
-There is no separate test runner/framework — it's a single Bash script that
-exercises `bin/devstrap` end-to-end against temp directories (`mktemp -d`) and
-asserts on created files and conflict-detection behavior. Add new scenarios by
-appending to this script rather than creating a new test file.
+Each `@test` in `tests/devstrap.bats` gets its own `mktemp -d` project
+directory via `setup()`/`teardown()`, and exercises `bin/devstrap` end-to-end
+by asserting on created files and conflict-detection behavior. Add new
+scenarios as new `@test` blocks in that file.
 
-Lint shell scripts with `shellcheck` (available via `flake.nix`'s dev shell):
+Lint shell scripts with `shellcheck` (it understands `.bats` syntax natively
+since v0.7.0, no preprocessing needed):
 
 ```bash
-nix develop   # enters a shell with shellcheck, unzip, zip
-shellcheck bin/devstrap install.sh tests/test-devstrap.sh
+shellcheck bin/devstrap install.sh tests/devstrap.bats
 ```
 
 Try the CLI locally without installing:
@@ -83,7 +84,7 @@ Generates a Dev Container that isolates an agent to a single project:
   first.
 
 Any change to a template must stay in sync with the assertions in
-`tests/test-devstrap.sh` (e.g. the `"name"` and workspace path substitution
+`tests/devstrap.bats` (e.g. the `"name"` and workspace path substitution
 checks, the exact list of files created per component).
 
 ## Conventions
