@@ -14,4 +14,17 @@
 - [ ] Add `Write(//etc/**)` to the `deny` list in `claude-managed-settings.json`
       alongside the existing `Edit(//etc/**)`, so creating new files under
       `/etc` via the Write tool is blocked too, not just editing existing ones.
+
+## CI / pre-commit
+
+- [ ] Run these automatically instead of relying on someone remembering to
+      run them locally — either a GitHub Actions workflow on push/PR, or a
+      pre-commit hook, or both:
+      - `bash -n bin/devstrap install.sh` as a cheap syntax-only sanity check
+        (does not apply to `tests/devstrap.bats` — bats' `@test { }` syntax
+        isn't valid plain bash, only `bats`/`shellcheck` understand it).
+      - `shellcheck bin/devstrap install.sh tests/devstrap.bats`
+      - `bats tests/devstrap.bats`
+      All three only need `nix develop`'s dev shell (`bats`, `shellcheck`), so
+      a CI job can just run them inside `nix develop --command bash -c '...'`.
 </content>
