@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+
+  "disableAutoMode": "disable",
+
+  "permissions": {
+    "defaultMode": "default",
+    "disableBypassPermissionsMode": "disable",
+
+    "deny": [
+      "Bash(sudo *)",
+      "Bash(su *)",
+
+      "Bash(rm -rf *)",
+      "Bash(rm -fr *)",
+      "Bash(find * -delete*)",
+      "Bash(find * -exec*)",
+      "Bash(rsync * --delete*)",
+
+      "Bash(dd *)",
+      "Bash(mkfs*)",
+      "Bash(mount *)",
+      "Bash(umount *)",
+      "Bash(parted *)",
+      "Bash(fdisk *)",
+
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git clean *)",
+      "Bash(git reset --hard *)",
+      "Bash(git rebase *)",
+
+      "Edit(//etc/**)"
+    ]
+  }
+}

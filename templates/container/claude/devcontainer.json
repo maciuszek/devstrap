@@ -1,0 +1,28 @@
+{
+  "name": "__PROJECT_NAME__",
+
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/devcontainers/features/nix:1": {},
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+  },
+
+  "overrideFeatureInstallOrder": [
+    "ghcr.io/devcontainers/features/node"
+  ],
+
+  // Expose only this repository to the container.
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/__PROJECT_NAME__,type=bind",
+  "workspaceFolder": "/workspace/__PROJECT_NAME__",
+
+  "remoteUser": "vscode",
+
+  "containerEnv": {
+    "NIX_CONFIG": "experimental-features = nix-command flakes"
+  }
+}

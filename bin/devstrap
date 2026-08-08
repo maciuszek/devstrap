@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  devstrap --container claude [--shell nix] [--project-dir DIR]
+  devstrap --shell nix [--project-dir DIR]
+  devstrap --help
+
+Options:
+  --container NAME   Install a dev-container template (currently: claude)
+  --shell NAME       Install a dev-shell template (currently: nix)
+  --project-dir DIR  Target project directory (default: current directory)
+  -h, --help         Show this help
+
+Safety:
+  Requested components are validated before anything is written.
+  devstrap refuses to overwrite or merge with existing managed paths/files.
+USAGE
+}
+
+die() { printf 'devstrap: %s\n' "$*" >&2; exit 1; }
+
+CONTAINER=""
+SHELL_TEMPLATE=""
+PROJECT_DIR="."
+
+while (($#)); do
+  case "$1" in
+    --container)
+      (($# >= 2)) || die "--container requires a value"
+      CONTAINER=$2; shift 2 ;;
+    --shell)
+      (($# >= 2)) || die "--shell requires a value"
+      SHELL_TEMPLATE=$2; shift 2 ;;
+    --project-dir)
+      (($# >= 2)) || die "--project-dir requires a value"
+      PROJECT_DIR=$2; shift 2 ;;
+    -h|--help)
+      usage; exit 0 ;;
+    *)
+      die "unknown argument: $1 (try --help)" ;;
+  esac
+done
+
+[[ -n "$CONTAINER" || -n "$SHELL_TEMPLATE" ]] || { usage >&2; exit 2; }
+[[ -d "$PROJECT_DIR" ]] || die "project directory does not exist: $PROJECT_DIR"
+PROJECT_DIR=$(cd "$PROJECT_DIR" && pwd -P)
+PROJECT_NAME=$(basename "$PROJECT_DIR")
+
+# Resolve symlinks so ~/bin/devstrap can point at the installed runtime while
+# templates remain alongside that runtime.
+SOURCE=${BASH_SOURCE[0]}
+while [[ -L "$SOURCE" ]]; do
+  SOURCE_DIR=$(cd -P -- "$(dirname -- "$SOURCE")" && pwd)
+  SOURCE=$(readlink -- "$SOURCE")
+  [[ "$SOURCE" = /* ]] || SOURCE="$SOURCE_DIR/$SOURCE"
+done
+SCRIPT_DIR=$(cd -P -- "$(dirname -- "$SOURCE")" && pwd)
+ROOT_DIR=$(cd "$SCRIPT_DIR/.." && pwd -P)
+TEMPLATES="$ROOT_DIR/templates"
+[[ -d "$TEMPLATES" ]] || die "templates directory not found beside devstrap: $TEMPLATES"
+
+planned=()
+conflicts=()
+
+path_exists() {
+  # -L also catches broken symlinks, which must not be silently replaced.
+  [[ -e "$1" || -L "$1" ]]
+}
+
+if [[ -n "$CONTAINER" ]]; then
+  [[ "$CONTAINER" == "claude" ]] || die "unknown container template: $CONTAINER"
+  planned+=(".devcontainer/ (container: claude)")
+  if path_exists "$PROJECT_DIR/.devcontainer"; then
+    conflicts+=("dev-container (claude)|$PROJECT_DIR/.devcontainer")
+  fi
+fi
+
+if [[ -n "$SHELL_TEMPLATE" ]]; then
+  [[ "$SHELL_TEMPLATE" == "nix" ]] || die "unknown shell template: $SHELL_TEMPLATE"
+  planned+=("flake.nix (shell: nix)")
+  if path_exists "$PROJECT_DIR/flake.nix"; then
+    conflicts+=("dev-shell (nix)|$PROJECT_DIR/flake.nix")
+  fi
+  if path_exists "$PROJECT_DIR/flake.lock"; then
+    conflicts+=("dev-shell (nix)|$PROJECT_DIR/flake.lock")
+  fi
+fi
+
+if ((${#conflicts[@]})); then
+  printf 'devstrap: conflicts detected; no files were changed.\n' >&2
+  current_component=""
+  for conflict in "${conflicts[@]}"; do
+    component=${conflict%%|*}
+    path=${conflict#*|}
+    if [[ "$component" != "$current_component" ]]; then
+      printf '  %s:\n' "$component" >&2
+      current_component=$component
+    fi
+    printf '    - %s already exists\n' "$path" >&2
+  done
+  exit 1
+fi
+
+printf 'Project: %s\n' "$PROJECT_DIR"
+printf 'Create:\n'
+printf '  %s\n' "${planned[@]}"
+
+if [[ -n "$CONTAINER" ]]; then
+  mkdir "$PROJECT_DIR/.devcontainer"
+  cp "$TEMPLATES/container/claude/Dockerfile" "$PROJECT_DIR/.devcontainer/Dockerfile"
+  cp "$TEMPLATES/container/claude/claude-managed-settings.json" "$PROJECT_DIR/.devcontainer/claude-managed-settings.json"
+  cp "$TEMPLATES/container/claude/devcontainer-lock.json" "$PROJECT_DIR/.devcontainer/devcontainer-lock.json"
+  # Escape replacement-sensitive characters for sed.
+  PROJECT_NAME_SED=$(printf '%s' "$PROJECT_NAME" | sed 's/[\&|]/\\&/g')
+  sed \
+    -e "s|__PROJECT_NAME__|$PROJECT_NAME_SED|g" \
+    "$TEMPLATES/container/claude/devcontainer.json" > "$PROJECT_DIR/.devcontainer/devcontainer.json"
+fi
+
+if [[ -n "$SHELL_TEMPLATE" ]]; then
+  cp "$TEMPLATES/shell/nix/flake.nix" "$PROJECT_DIR/flake.nix"
+fi
+
+printf 'devstrap: done\n'
