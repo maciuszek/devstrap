@@ -26,18 +26,51 @@ conflicts up front, then only creates/writes the requested generated files.
       CLAUDE.md/README wording that calls the managed-settings file something
       Claude "cannot edit" — that only becomes strictly true afterwards.
 
-- [ ] **Reject a symlinked install root in `install.sh`.** `rm -rf
-      "${DEST_DIR:?}/bin" "${DEST_DIR:?}/templates"` (`install.sh:27`)
-      resolves those trailing components *through* a symlinked `DEST_DIR`, so
-      the delete lands in the link target. The existing absolute-path and
-      `:?` guards don't cover this. Realistic case: someone symlinks
-      `~/.local/share/devstrap` at their checkout to develop against it live,
-      runs `./install.sh`, and loses `bin/` and `templates/` from the source
-      repo. Reject a symlinked root before anything destructive runs. While
-      there, make the existing prompt honest — it prints the literal
-      `$DEST_DIR/bin` while `rm -rf` acts on the resolved path, so in exactly
-      this scenario the gate names the install directory while something else
-      is deleted.
+- [ ] **Resolve and vet `DEST_DIR` before `install.sh` removes anything.**
+      Two problems share one root cause: `rm -rf "${DEST_DIR:?}/bin"
+      "${DEST_DIR:?}/templates"` (`install.sh:27`) acts on an unnormalized,
+      unresolved path.
+      - *Symlinked root.* The trailing components resolve *through* a
+        symlinked `DEST_DIR`, so the delete lands in the link target.
+        Realistic case: someone symlinks `~/.local/share/devstrap` at their
+        checkout to develop against it live, runs `./install.sh`, and loses
+        `bin/` and `templates/` from the source repo.
+      - *The `/` guard is a blocklist with holes.* `install.sh:13` compares
+        against the literal string `/`, so `DEST_DIR=//` passes both guards
+        and the removal resolves to `/bin` and `/templates`; `DEST_DIR=/usr`
+        passes just as easily and targets `/usr/bin`. Both require a
+        deliberate override *and* a typed `y` at the prompt, which does
+        display the pathological path — so this is a weak guard, not a silent
+        destruction path.
+
+      Normalizing early (`cd "$DEST_DIR" && pwd -P` after the `mkdir -p`)
+      collapses `//`, resolves the symlink, and makes the prompt honest — it
+      currently prints the literal `$DEST_DIR/bin` while `rm -rf` acts on the
+      resolved path, so in the symlink case the gate names the install
+      directory while something else is deleted. Resolution alone still
+      deletes the developer's source repo, so also refuse when the original
+      `DEST_DIR` was a symlink. Stronger still, and worth considering
+      together: gate removal on recognizing a prior devstrap install (e.g.
+      require `$DEST_DIR/bin/devstrap`) rather than on rejecting known-bad
+      paths, which turns the guard from a blocklist into an allowlist.
+
+- [ ] **Say what the container does and doesn't protect.** It limits host
+      blast radius by bind-mounting only the active project — it does not
+      protect that project, which is intentionally writable by the agent. The
+      README should state plainly: agent mistakes can still modify or delete
+      files in the repo; Git and backups are the real protection for its
+      contents; the deny rules are text-pattern defense-in-depth, not a
+      filesystem boundary; and a devcontainer is not equivalent to a VM-level
+      boundary.
+
+      Be concrete about the last point, because the deny list reads stronger
+      than it is. It blocks `rm -rf`, `find -delete`, and `rsync --delete` as
+      command-string patterns. It does not block `mv`, `truncate`, `git
+      checkout .`, `git restore`, plain `rm` without those flags, or any
+      interpreter (`python`, `node`, `perl`) opening a file for writing. An
+      agent that damages the repo will not do it through a string that
+      matches those patterns, so the rules narrow the accident surface rather
+      than bounding it.
 
 - [ ] **Determine what host credentials reach the Claude container.** VS Code
       Dev Containers can forward an SSH agent and inject Git credential
@@ -89,7 +122,8 @@ conflicts up front, then only creates/writes the requested generated files.
 - [ ] **Give `install.sh` test coverage**, as part of the two installer items
       above rather than as separate work: clean install, update with
       confirmation, declined prompt, symlinked `DEST_DIR` rejected,
-      unexpected `~/bin/devstrap`, and no mutation on failure. Keep the
+      unnormalized `DEST_DIR` (`//`, a trailing slash) resolved before any
+      removal, unexpected `~/bin/devstrap`, and no mutation on failure. Keep the
       `DEST_DIR`/`BIN_DIR` env overrides — they're what lets a test point the
       installer at a temp directory instead of a real `$HOME`.
 
@@ -102,7 +136,6 @@ conflicts up front, then only creates/writes the requested generated files.
       like `[A-Za-z0-9._-]+` in the existing pre-write validation phase so
       failure precedes any write. Needs a deliberately odd directory name to
       trigger; correctness more than safety.
-
 
 - [ ] **Validate installer source inputs before replacing an existing install.**
       `install.sh` currently removes the installed `bin/` and `templates/`
@@ -118,17 +151,6 @@ conflicts up front, then only creates/writes the requested generated files.
       same state afterwards. Only add Dockerfile ownership setup if this test
       demonstrates it is actually needed; the named-volume pattern itself
       follows Anthropic's documented/reference devcontainer approach.
-
-## Documentation
-
-- [ ] **Say what the container does and doesn't protect.** It limits host
-      blast radius by bind-mounting only the active project — it does not
-      protect that project, which is intentionally writable by the agent. The
-      README should state plainly: agent mistakes can still modify or delete
-      files in the repo; Git and backups are the real protection for its
-      contents; the deny rules are text-pattern defense-in-depth, not a
-      filesystem boundary; and a devcontainer is not equivalent to a VM-level
-      boundary.
 
 ## Minor
 

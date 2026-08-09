@@ -135,6 +135,10 @@ printf 'Create:\n'
 printf '  %s\n' "${planned[@]}"
 
 if [[ -n "$CONTAINER_TEMPLATE" ]]; then
+  # Deliberately not `mkdir -p`: this is an atomic exclusive create, and the
+  # last guard against writing into an existing .devcontainer if the conflict
+  # check above is ever wrong. Adding -p would silently weaken the
+  # all-or-nothing guarantee with nothing failing to catch it.
   mkdir "$PROJECT_DIR/.devcontainer"
   cp "$CONTAINER_DIR/Dockerfile" "$PROJECT_DIR/.devcontainer/Dockerfile"
   cp "$CONTAINER_DIR/claude-managed-settings.json" "$PROJECT_DIR/.devcontainer/claude-managed-settings.json"
@@ -153,6 +157,7 @@ fi
 if [[ -n "$SAFETY_BOUNDARIES" ]]; then
   printf '\nRecommended: review and add the following section to the project CLAUDE.md:\n\n'
   cat "$SAFETY_BOUNDARIES"
+  printf '\n'
 fi
 
-printf '\ndevstrap: done\n'
+printf 'devstrap: done\n'
