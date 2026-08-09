@@ -37,22 +37,26 @@ conflicts up front, then only creates/writes the requested generated files.
         `bin/` and `templates/` from the source repo.
       - *The `/` guard is a blocklist with holes.* `install.sh:13` compares
         against the literal string `/`, so `DEST_DIR=//` passes both guards
-        and the removal resolves to `/bin` and `/templates`; `DEST_DIR=/usr`
-        passes just as easily and targets `/usr/bin`. Both require a
-        deliberate override *and* a typed `y` at the prompt, which does
-        display the pathological path — so this is a weak guard, not a silent
-        destruction path.
+        even though it can refer to the filesystem root; `DEST_DIR=/usr`
+        likewise passes and would target `/usr/bin`. Both require a deliberate
+        override *and* a typed `y` at the prompt, so this is a weak guard rather
+        than a silent destruction path.
 
-      Normalizing early (`cd "$DEST_DIR" && pwd -P` after the `mkdir -p`)
-      collapses `//`, resolves the symlink, and makes the prompt honest — it
-      currently prints the literal `$DEST_DIR/bin` while `rm -rf` acts on the
-      resolved path, so in the symlink case the gate names the install
-      directory while something else is deleted. Resolution alone still
-      deletes the developer's source repo, so also refuse when the original
-      `DEST_DIR` was a symlink. Stronger still, and worth considering
-      together: gate removal on recognizing a prior devstrap install (e.g.
-      require `$DEST_DIR/bin/devstrap`) rather than on rejecting known-bad
-      paths, which turns the guard from a blocklist into an allowlist.
+      Reject a symlinked original `DEST_DIR` before any destructive operation.
+      Then canonicalize the destination with a mechanism that actually
+      collapses equivalent path spellings (for example `realpath` after
+      ensuring the destination exists), validate that canonical path, and use
+      that same canonical path in both the confirmation prompt and subsequent
+      filesystem operations.
+
+      Stronger still, and worth considering together: distinguish between a
+      clean/new destination and a recognized existing devstrap installation.
+      A new/empty destination may be installed into; an existing destination
+      should only be replaced when it is recognizably owned by devstrap (for
+      example by the expected `$DEST_DIR/bin/devstrap` runtime structure).
+      Unexpected existing contents should fail closed rather than be removed.
+      This turns replacement validation into an allowlist instead of trying to
+      enumerate every dangerous pathname.
 
 - [ ] **Say what the container does and doesn't protect.** It limits host
       blast radius by bind-mounting only the active project — it does not
@@ -120,12 +124,15 @@ conflicts up front, then only creates/writes the requested generated files.
       is specific to this tool — but cheap.
 
 - [ ] **Give `install.sh` test coverage**, as part of the two installer items
-      above rather than as separate work: clean install, update with
+      above rather than as separate work: clean install into a new/empty
+      destination, update over a recognized existing install with
       confirmation, declined prompt, symlinked `DEST_DIR` rejected,
       unnormalized `DEST_DIR` (`//`, a trailing slash) resolved before any
-      removal, unexpected `~/bin/devstrap`, and no mutation on failure. Keep the
-      `DEST_DIR`/`BIN_DIR` env overrides — they're what lets a test point the
-      installer at a temp directory instead of a real `$HOME`.
+      removal, a `DEST_DIR` holding unrecognized contents failing closed
+      instead of being cleared, unexpected `~/bin/devstrap`, and no mutation
+      on failure. Keep the `DEST_DIR`/`BIN_DIR` env overrides — they're what
+      lets a test point the installer at a temp directory instead of a real
+      `$HOME`.
 
 - [ ] **Validate `PROJECT_NAME`.** `basename "$PROJECT_DIR"` is substituted
       into `devcontainer.json` by `sed`. The current escaping is correct for

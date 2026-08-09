@@ -103,8 +103,9 @@ not an OS-level control — see `TODO.md` for known, not-yet-applied hardening
 (e.g. the base image's default passwordless `sudo` for `vscode` is the actual
 root-of-trust today, since it can be reached by paths the `Bash(sudo *)`
 pattern doesn't match). The container's bind-mount isolation (only the one
-repo is exposed, no docker socket) is the real hard boundary; the deny rules
-are a defense-in-depth layer on top of it, not a substitute for it.
+repo is exposed, no docker socket) is the primary host-filesystem isolation
+boundary; the deny rules are a defense-in-depth layer on top of it, not a
+substitute for it.
 
 Any change to a template must stay in sync with the assertions in
 `tests/devstrap.bats` (e.g. the `"name"` and workspace path substitution
