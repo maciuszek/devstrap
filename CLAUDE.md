@@ -108,4 +108,3 @@ checks, the exact list of files created per component).
   shell templates (`nix`, `bash`), explicit flags, no merge/overwrite
   behavior. New templates should be added only when a real consuming project
   needs them, not speculatively.
-</content>
