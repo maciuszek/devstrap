@@ -64,6 +64,9 @@ TEMPLATES="$ROOT_DIR/templates"
 
 planned=()
 conflicts=()
+CONTAINER_DIR=""
+SHELL_FLAKE=""
+SAFETY_BOUNDARIES=""
 
 path_exists() {
   # -L also catches broken symlinks, which must not be silently replaced.
@@ -75,6 +78,19 @@ if [[ -n "$CONTAINER_TEMPLATE" ]]; then
     claude) ;;
     *) die "unknown container template: $CONTAINER_TEMPLATE" ;;
   esac
+
+  CONTAINER_DIR="$TEMPLATES/container/$CONTAINER_TEMPLATE"
+  for template_file in Dockerfile claude-managed-settings.json devcontainer-lock.json devcontainer.json; do
+    [[ -f "$CONTAINER_DIR/$template_file" ]] || \
+      die "container template file not found: $CONTAINER_DIR/$template_file"
+  done
+
+  if [[ "$CONTAINER_TEMPLATE" == "claude" ]]; then
+    SAFETY_BOUNDARIES="$CONTAINER_DIR/claude-md-safety-boundaries.md"
+    [[ -f "$SAFETY_BOUNDARIES" ]] || \
+      die "Claude safety-boundaries snippet not found: $SAFETY_BOUNDARIES"
+  fi
+
   planned+=(".devcontainer/ (container: $CONTAINER_TEMPLATE)")
   if path_exists "$PROJECT_DIR/.devcontainer"; then
     conflicts+=("dev-container ($CONTAINER_TEMPLATE)|$PROJECT_DIR/.devcontainer")
@@ -86,6 +102,10 @@ if [[ -n "$SHELL_TEMPLATE" ]]; then
     nix|bash) ;;
     *) die "unknown shell template: $SHELL_TEMPLATE" ;;
   esac
+
+  SHELL_FLAKE="$TEMPLATES/shell/$SHELL_TEMPLATE/flake.nix"
+  [[ -f "$SHELL_FLAKE" ]] || die "shell template file not found: $SHELL_FLAKE"
+
   planned+=("flake.nix (shell: $SHELL_TEMPLATE)")
   if path_exists "$PROJECT_DIR/flake.nix"; then
     conflicts+=("dev-shell ($SHELL_TEMPLATE)|$PROJECT_DIR/flake.nix")
@@ -116,25 +136,23 @@ printf '  %s\n' "${planned[@]}"
 
 if [[ -n "$CONTAINER_TEMPLATE" ]]; then
   mkdir "$PROJECT_DIR/.devcontainer"
-  cp "$TEMPLATES/container/$CONTAINER_TEMPLATE/Dockerfile" "$PROJECT_DIR/.devcontainer/Dockerfile"
-  cp "$TEMPLATES/container/$CONTAINER_TEMPLATE/claude-managed-settings.json" "$PROJECT_DIR/.devcontainer/claude-managed-settings.json"
-  cp "$TEMPLATES/container/$CONTAINER_TEMPLATE/devcontainer-lock.json" "$PROJECT_DIR/.devcontainer/devcontainer-lock.json"
+  cp "$CONTAINER_DIR/Dockerfile" "$PROJECT_DIR/.devcontainer/Dockerfile"
+  cp "$CONTAINER_DIR/claude-managed-settings.json" "$PROJECT_DIR/.devcontainer/claude-managed-settings.json"
+  cp "$CONTAINER_DIR/devcontainer-lock.json" "$PROJECT_DIR/.devcontainer/devcontainer-lock.json"
   # Escape replacement-sensitive characters for sed.
   PROJECT_NAME_SED=$(printf '%s' "$PROJECT_NAME" | sed 's/[\&|]/\\&/g')
   sed \
     -e "s|__PROJECT_NAME__|$PROJECT_NAME_SED|g" \
-    "$TEMPLATES/container/$CONTAINER_TEMPLATE/devcontainer.json" > "$PROJECT_DIR/.devcontainer/devcontainer.json"
+    "$CONTAINER_DIR/devcontainer.json" > "$PROJECT_DIR/.devcontainer/devcontainer.json"
 fi
 
 if [[ -n "$SHELL_TEMPLATE" ]]; then
-  cp "$TEMPLATES/shell/$SHELL_TEMPLATE/flake.nix" "$PROJECT_DIR/flake.nix"
+  cp "$SHELL_FLAKE" "$PROJECT_DIR/flake.nix"
 fi
 
-printf 'devstrap: done\n'
-
-if [[ "$CONTAINER_TEMPLATE" == "claude" ]]; then
-  SAFETY_BOUNDARIES="$TEMPLATES/container/claude/claude-md-safety-boundaries.md"
-  [[ -f "$SAFETY_BOUNDARIES" ]] || die "Claude safety-boundaries snippet not found: $SAFETY_BOUNDARIES"
-  printf '\nRecommended: add the following section to the project CLAUDE.md:\n\n'
+if [[ -n "$SAFETY_BOUNDARIES" ]]; then
+  printf '\nRecommended: review and add the following section to the project CLAUDE.md:\n\n'
   cat "$SAFETY_BOUNDARIES"
 fi
+
+printf '\ndevstrap: done\n'

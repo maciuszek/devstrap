@@ -25,8 +25,9 @@ teardown() {
   grep -Fq 'source=claude-code-config-${devcontainerId},target=/home/vscode/.claude,type=volume' "$TMP/both/.devcontainer/devcontainer.json"
   grep -q '"CLAUDE_CONFIG_DIR": "/home/vscode/.claude"' "$TMP/both/.devcontainer/devcontainer.json"
   grep -q '"claudeCode.preferredLocation": "panel"' "$TMP/both/.devcontainer/devcontainer.json"
-  [[ "$output" == *"Recommended: add the following section to the project CLAUDE.md:"* ]]
+  [[ "$output" == *"Recommended: review and add the following section to the project CLAUDE.md:"* ]]
   [[ "$output" == *"## Safety boundaries"* ]]
+  [[ "$output" == *$'\ndevstrap: done' ]]
 }
 
 @test "bash shell template creates a shellcheck/bats flake" {
@@ -61,6 +62,42 @@ teardown() {
   [ "$status" -eq 0 ]
   [ -f "$TMP/shell-only/flake.nix" ]
   [ -f "$TMP/shell-only/.devcontainer/existing" ]
+}
+
+@test "shell-only does not print Claude safety-boundaries guidance" {
+  mkdir "$TMP/shell-guidance"
+  run "$ROOT/bin/devstrap" --shell nix --project-dir "$TMP/shell-guidance"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"Recommended: review and add the following section to the project CLAUDE.md:"* ]]
+  [[ "$output" != *"## Safety boundaries"* ]]
+}
+
+@test "missing Claude safety snippet fails before writing" {
+  mkdir -p "$TMP/runtime/bin" "$TMP/runtime/templates/container/claude" "$TMP/project"
+  cp "$ROOT/bin/devstrap" "$TMP/runtime/bin/devstrap"
+  cp "$ROOT/templates/container/claude/Dockerfile" "$TMP/runtime/templates/container/claude/Dockerfile"
+  cp "$ROOT/templates/container/claude/claude-managed-settings.json" "$TMP/runtime/templates/container/claude/claude-managed-settings.json"
+  cp "$ROOT/templates/container/claude/devcontainer-lock.json" "$TMP/runtime/templates/container/claude/devcontainer-lock.json"
+  cp "$ROOT/templates/container/claude/devcontainer.json" "$TMP/runtime/templates/container/claude/devcontainer.json"
+
+  run "$TMP/runtime/bin/devstrap" --container claude --project-dir "$TMP/project"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Claude safety-boundaries snippet not found"* ]]
+  [ ! -e "$TMP/project/.devcontainer" ]
+}
+
+@test "missing container template input fails before writing" {
+  mkdir -p "$TMP/runtime-input/bin" "$TMP/runtime-input/templates/container/claude" "$TMP/input-project"
+  cp "$ROOT/bin/devstrap" "$TMP/runtime-input/bin/devstrap"
+  cp "$ROOT/templates/container/claude/Dockerfile" "$TMP/runtime-input/templates/container/claude/Dockerfile"
+  cp "$ROOT/templates/container/claude/claude-managed-settings.json" "$TMP/runtime-input/templates/container/claude/claude-managed-settings.json"
+  cp "$ROOT/templates/container/claude/devcontainer.json" "$TMP/runtime-input/templates/container/claude/devcontainer.json"
+  cp "$ROOT/templates/container/claude/claude-md-safety-boundaries.md" "$TMP/runtime-input/templates/container/claude/claude-md-safety-boundaries.md"
+
+  run "$TMP/runtime-input/bin/devstrap" --container claude --project-dir "$TMP/input-project"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"container template file not found"* ]]
+  [ ! -e "$TMP/input-project/.devcontainer" ]
 }
 
 @test "combined mode is all-or-nothing if the container conflicts" {

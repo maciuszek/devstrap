@@ -89,8 +89,10 @@ Claude Code will also ask you to sign in the first time you use a newly initiali
 project. The generated container stores Claude's configuration in a per-project
 Docker named volume, so authentication, user settings, session history, and
 auto-memory survive normal Dev Container rebuilds. The volume is not stored in
-the repository. Deleting that Docker volume will remove the persisted Claude
-state for the project.
+the repository. Its name includes Dev Containers' `${devcontainerId}`; if that
+identifier changes, a different volume name is used and the previous state will
+not automatically appear in the new container. Deleting the Docker volume also
+removes the persisted Claude state for that project identity.
 
 Once the container opens, the integrated terminal can be used to sanity-check
 the environment:
@@ -129,12 +131,14 @@ Creates `.devcontainer/` with:
   history, and auto-memory survive container rebuilds without being stored in
   the repository.
 - VS Code configured to open Claude Code in the panel by default.
-- A post-generation recommendation containing a `CLAUDE.md` safety-boundaries
-  section for the user to review and add to the project instructions.
+- A post-generation recommendation containing a generic `CLAUDE.md`
+  safety-boundaries section for the user to review and add to the project
+  instructions. It intentionally overlaps the managed policy while being
+  broader advisory guidance for the agent.
 
 The template is generalized from the devcontainer used by `setup_nixos`.
 Project-specific NixOS installer restrictions are intentionally not part of the
-generic policy.
+generic policy or the printed safety-boundaries recommendation.
 
 ### `--shell nix`
 

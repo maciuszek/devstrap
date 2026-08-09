@@ -1,13 +1,15 @@
 # TODO
 
-devstrap is stable and safe to run as-is — nothing below fixes a live bug.
-Items are ordered by how much risk they actually remove.
+devstrap is stable and usable in its intended/default workflow. The items below
+cover edge-case bugs, defense-in-depth hardening, documentation, reproducibility,
+and portability improvements. Items are ordered by how much risk they actually
+remove.
 
 **Destructive surface** (verified 2026-08-09): the repo runs `rm` in two
 places — `install.sh:27`, already gated by the confirmation prompt at
 `install.sh:19-25`, and `tests/devstrap.bats:9`, on a `mktemp -d` path.
-`bin/devstrap` never deletes anything: it conflict-checks every requested
-component up front, then only `mkdir`s and `cp`s.
+`bin/devstrap` never deletes anything: it validates requested templates and
+conflicts up front, then only creates/writes the requested generated files.
 
 ## Worth doing
 
@@ -47,6 +49,15 @@ component up front, then only `mkdir`s and `cp`s.
       in the README so the container's reach is documented rather than
       assumed.
 
+- [ ] **Audit the security implications of persisted Claude state.** The new
+      per-project `~/.claude` volume intentionally survives rebuilds and is
+      writable by the container user. Verify which persisted user settings,
+      hooks, MCP configuration, trust state, and other files can influence a
+      later Claude session; confirm the managed `/etc/claude-code` policy still
+      has the precedence we rely on; and document an explicit way to inspect
+      or reset the project volume. A normal container rebuild should not be
+      described as a clean-state reset anymore.
+
 - [ ] **Run `shellcheck` and `bats` automatically** — GitHub Actions on
       push/PR, a pre-commit hook, or both. Cheapest item in this file, and
       the only one that prevents *future* bugs rather than fixing a known
@@ -82,17 +93,31 @@ component up front, then only `mkdir`s and `cp`s.
       `DEST_DIR`/`BIN_DIR` env overrides — they're what lets a test point the
       installer at a temp directory instead of a real `$HOME`.
 
-- [ ] **Validate `PROJECT_NAME`.** `basename "$PROJECT_DIR"`
-      (`bin/devstrap:50`) is substituted into `devcontainer.json` by `sed`.
-      The escaping at `bin/devstrap:123` is correct for `sed` but isn't JSON
-      escaping, so a `"` in the directory name yields invalid JSON silently,
-      and a newline makes `sed` fail *after* the `mkdir` and `cp`s at
-      `bin/devstrap:118-121` — leaving a half-built `.devcontainer/` and
-      breaking the all-or-nothing guarantee `--help` advertises. Validate
-      against something like `[A-Za-z0-9._-]+` next to `bin/devstrap:50`, in
-      the existing validation phase, so failure precedes any write. Needs a
-      deliberately odd directory name to trigger; correctness more than
-      safety.
+- [ ] **Validate `PROJECT_NAME`.** `basename "$PROJECT_DIR"` is substituted
+      into `devcontainer.json` by `sed`. The current escaping is correct for
+      `sed` but isn't JSON escaping, so a `"` in the directory name yields
+      invalid JSON silently, and a newline can make `sed` fail after generation
+      has already started — leaving a partial `.devcontainer/` and breaking the
+      all-or-nothing guarantee `--help` advertises. Validate against something
+      like `[A-Za-z0-9._-]+` in the existing pre-write validation phase so
+      failure precedes any write. Needs a deliberately odd directory name to
+      trigger; correctness more than safety.
+
+
+- [ ] **Validate installer source inputs before replacing an existing install.**
+      `install.sh` currently removes the installed `bin/` and `templates/`
+      before copying their replacements. Check that the source checkout has
+      the expected runtime/template directories and entrypoint before the
+      confirmation/removal phase, so a partial or stale checkout cannot remove
+      a working install and then fail during `cp`. This is primarily
+      availability/robustness, not arbitrary host-data loss.
+
+- [ ] **Verify fresh Claude-volume ownership and persistence in a real built
+      container.** On a brand-new project/volume, confirm `vscode` can write
+      `$CLAUDE_CONFIG_DIR`, authenticate, create state, rebuild, and see the
+      same state afterwards. Only add Dockerfile ownership setup if this test
+      demonstrates it is actually needed; the named-volume pattern itself
+      follows Anthropic's documented/reference devcontainer approach.
 
 ## Documentation
 

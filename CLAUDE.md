@@ -46,8 +46,9 @@ Install it onto PATH:
 
 - **`bin/devstrap`** — the entire CLI logic in one script. Flow: parse flags →
   resolve the real script location (following symlinks, since the installed
-  binary is a symlink into `~/.local/share/devstrap`) → validate every
-  requested component for conflicts *before* writing anything → write files.
+  binary is a symlink into `~/.local/share/devstrap`) → validate requested
+  template inputs and component conflicts *before* writing anything → write
+  files.
   There is no `--force`; conflicts abort with a grouped report and zero
   filesystem changes (all-or-nothing across both components).
 - **`templates/`** — the source of truth for generated file content, mirrored
@@ -55,9 +56,10 @@ Install it onto PATH:
   - `templates/container/claude/` — `Dockerfile`, `claude-managed-settings.json`,
     `devcontainer-lock.json`, `devcontainer.json` (contains `__PROJECT_NAME__`
     placeholders substituted via `sed` at generation time), and
-    `claude-md-safety-boundaries.md`, which is printed after Claude-container
-    generation as recommended project instructions but is not copied into the
-    target repository.
+    `claude-md-safety-boundaries.md`, a generic project-level guidance block
+    printed after Claude-container generation for the user to review; it is not
+    copied into the target repository. It intentionally overlaps the managed
+    deny policy while remaining broader advisory guidance.
   - `templates/shell/<name>/flake.nix` (currently `nix`, `bash`) — copied
     verbatim per the chosen `--shell` name, no substitution. `nix` is a
     generic starter (`nixfmt`, `shellcheck`); `bash` is curated for
