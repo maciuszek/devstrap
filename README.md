@@ -85,6 +85,13 @@ Dev Containers: Open Folder in Container...
 and select the project directory.
 
 On the first build, pulling the base image and features can take a little time.
+Claude Code will also ask you to sign in the first time you use a newly initialized
+project. The generated container stores Claude's configuration in a per-project
+Docker named volume, so authentication, user settings, session history, and
+auto-memory survive normal Dev Container rebuilds. The volume is not stored in
+the repository. Deleting that Docker volume will remove the persisted Claude
+state for the project.
+
 Once the container opens, the integrated terminal can be used to sanity-check
 the environment:
 
@@ -117,6 +124,13 @@ Creates `.devcontainer/` with:
 - Denials for privilege escalation, common destructive filesystem/disk
   commands, destructive Git operations, and edits under `/etc`.
 - A workspace bind mount exposing only the selected repository.
+- A per-project Docker named volume at `/home/vscode/.claude`, with
+  `CLAUDE_CONFIG_DIR` pointed there so Claude authentication, settings, session
+  history, and auto-memory survive container rebuilds without being stored in
+  the repository.
+- VS Code configured to open Claude Code in the panel by default.
+- A post-generation recommendation containing a `CLAUDE.md` safety-boundaries
+  section for the user to review and add to the project instructions.
 
 The template is generalized from the devcontainer used by `setup_nixos`.
 Project-specific NixOS installer restrictions are intentionally not part of the

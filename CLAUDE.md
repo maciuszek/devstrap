@@ -53,9 +53,11 @@ Install it onto PATH:
 - **`templates/`** — the source of truth for generated file content, mirrored
   by category:
   - `templates/container/claude/` — `Dockerfile`, `claude-managed-settings.json`,
-    `devcontainer-lock.json`, and `devcontainer.json` (contains
-    `__PROJECT_NAME__` placeholders substituted via `sed` at generation time,
-    since JSON has no native templating).
+    `devcontainer-lock.json`, `devcontainer.json` (contains `__PROJECT_NAME__`
+    placeholders substituted via `sed` at generation time), and
+    `claude-md-safety-boundaries.md`, which is printed after Claude-container
+    generation as recommended project instructions but is not copied into the
+    target repository.
   - `templates/shell/<name>/flake.nix` (currently `nix`, `bash`) — copied
     verbatim per the chosen `--shell` name, no substitution. `nix` is a
     generic starter (`nixfmt`, `shellcheck`); `bash` is curated for
@@ -87,6 +89,12 @@ Generates a Dev Container that isolates an agent to a single project:
 - Node and Nix are installed as Dev Container features alongside the Claude
   Code feature, with `overrideFeatureInstallOrder` ensuring Node installs
   first.
+- Claude state is kept in a per-project Docker named volume mounted at
+  `/home/vscode/.claude`; `CLAUDE_CONFIG_DIR` points to the same location so
+  authentication and `.claude.json` state survive rebuilds along with settings,
+  session history, and auto-memory. This state is deliberately not written into
+  the repository.
+- VS Code is configured with `claudeCode.preferredLocation = "panel"`.
 
 The deny rules above are Claude Code's own text-pattern permission checks,
 not an OS-level control — see `TODO.md` for known, not-yet-applied hardening

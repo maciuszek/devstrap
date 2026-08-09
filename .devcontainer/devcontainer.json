@@ -22,7 +22,22 @@
 
   "remoteUser": "vscode",
 
+  // Persist Claude authentication, settings, session history, and auto-memory
+  // across container rebuilds. Keep state isolated per project.
+  "mounts": [
+    "source=claude-code-config-${devcontainerId},target=/home/vscode/.claude,type=volume"
+  ],
+
   "containerEnv": {
-    "NIX_CONFIG": "experimental-features = nix-command flakes"
+    "NIX_CONFIG": "experimental-features = nix-command flakes",
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+  },
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "claudeCode.preferredLocation": "panel"
+      }
+    }
   }
 }

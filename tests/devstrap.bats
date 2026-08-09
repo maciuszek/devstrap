@@ -22,6 +22,11 @@ teardown() {
 
   grep -q '"name": "both"' "$TMP/both/.devcontainer/devcontainer.json"
   grep -q '/workspace/both' "$TMP/both/.devcontainer/devcontainer.json"
+  grep -Fq 'source=claude-code-config-${devcontainerId},target=/home/vscode/.claude,type=volume' "$TMP/both/.devcontainer/devcontainer.json"
+  grep -q '"CLAUDE_CONFIG_DIR": "/home/vscode/.claude"' "$TMP/both/.devcontainer/devcontainer.json"
+  grep -q '"claudeCode.preferredLocation": "panel"' "$TMP/both/.devcontainer/devcontainer.json"
+  [[ "$output" == *"Recommended: add the following section to the project CLAUDE.md:"* ]]
+  [[ "$output" == *"## Safety boundaries"* ]]
 }
 
 @test "bash shell template creates a shellcheck/bats flake" {
