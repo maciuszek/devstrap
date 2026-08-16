@@ -49,8 +49,8 @@ done
 PROJECT_DIR=$(cd "$PROJECT_DIR" && pwd -P)
 PROJECT_NAME=$(basename "$PROJECT_DIR")
 
-# Resolve symlinks so ~/bin/devstrap can point at the installed runtime while
-# templates remain alongside that runtime.
+# Resolve symlinks so ~/bin/devstrap can point at either a checkout or a copied
+# runtime, with templates read from alongside whichever one it resolves to.
 SOURCE=${BASH_SOURCE[0]}
 while [[ -L "$SOURCE" ]]; do
   SOURCE_DIR=$(cd -P -- "$(dirname -- "$SOURCE")" && pwd)

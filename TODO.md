@@ -5,9 +5,11 @@ cover edge-case bugs, defense-in-depth hardening, documentation, reproducibility
 and portability improvements. Items are ordered by how much risk they actually
 remove.
 
-**Destructive surface** (verified 2026-08-09): the repo runs `rm` in two
-places — `install.sh:27`, already gated by the confirmation prompt at
-`install.sh:19-25`, and `tests/devstrap.bats:9`, on a `mktemp -d` path.
+**Destructive surface** (verified 2026-08-16): the repo runs `rm` in two
+places — `install.sh:102`, reachable only via `--standalone` and already gated
+by the confirmation prompt at `install.sh:94-99`, and `tests/devstrap.bats:9`,
+on a `mktemp -d` path. The default `--link` install removes nothing, and
+`tests/install.bats` uses `BATS_TEST_TMPDIR` instead of its own cleanup.
 `bin/devstrap` never deletes anything: it validates requested templates and
 conflicts up front, then only creates/writes the requested generated files.
 
@@ -26,16 +28,19 @@ conflicts up front, then only creates/writes the requested generated files.
       CLAUDE.md/README wording that calls the managed-settings file something
       Claude "cannot edit" — that only becomes strictly true afterwards.
 
-- [ ] **Resolve and vet `DEST_DIR` before `install.sh` removes anything.**
-      Two problems share one root cause: `rm -rf "${DEST_DIR:?}/bin"
-      "${DEST_DIR:?}/templates"` (`install.sh:27`) acts on an unnormalized,
-      unresolved path.
+- [ ] **Resolve and vet `DEST_DIR` before `install.sh --standalone` removes
+      anything.** Two problems share one root cause: `rm -rf "${DEST_DIR:?}/bin"
+      "${DEST_DIR:?}/templates"` (`install.sh:102`) acts on an unnormalized,
+      unresolved path. Lower priority than it was: this path is now opt-in
+      rather than the default install.
       - *Symlinked root.* The trailing components resolve *through* a
         symlinked `DEST_DIR`, so the delete lands in the link target.
         Realistic case: someone symlinks `~/.local/share/devstrap` at their
-        checkout to develop against it live, runs `./install.sh`, and loses
-        `bin/` and `templates/` from the source repo.
-      - *The `/` guard is a blocklist with holes.* `install.sh:13` compares
+        checkout to develop against it live, runs `./install.sh --standalone`,
+        and loses `bin/` and `templates/` from the source repo. (The `--link`
+        default now covers that develop-against-it-live case directly, which
+        is what made this scenario worth doing in the first place.)
+      - *The `/` guard is a blocklist with holes.* `install.sh:88` compares
         against the literal string `/`, so `DEST_DIR=//` passes both guards
         even though it can refer to the filesystem root; `DEST_DIR=/usr`
         likewise passes and would target `/usr/bin`. Both require a deliberate
@@ -57,6 +62,13 @@ conflicts up front, then only creates/writes the requested generated files.
       Unexpected existing contents should fail closed rather than be removed.
       This turns replacement validation into an allowlist instead of trying to
       enumerate every dangerous pathname.
+
+      Extend `tests/install.bats` alongside the fix — it covers both install
+      modes and the shared symlink gate, but nothing here, because there is no
+      behavior to assert yet: symlinked `DEST_DIR` rejected, unnormalized
+      `DEST_DIR` (`//`, a trailing slash) resolved before any removal, and a
+      `DEST_DIR` holding unrecognized contents failing closed instead of being
+      cleared.
 
 - [ ] **Say what the container does and doesn't protect.** It limits host
       blast radius by bind-mounting only the active project — it does not
@@ -101,10 +113,10 @@ conflicts up front, then only creates/writes the requested generated files.
       one; it catches the class of quoting and path bug the rest of this list
       is about.
       - `bash -n bin/devstrap install.sh` — syntax-only sanity check. Does
-        not apply to `tests/devstrap.bats`: bats' `@test { }` syntax isn't
-        valid plain bash, only `bats`/`shellcheck` parse it.
-      - `shellcheck bin/devstrap install.sh tests/devstrap.bats`
-      - `bats tests/devstrap.bats`
+        not apply to the `.bats` files: bats' `@test { }` syntax isn't valid
+        plain bash, only `bats`/`shellcheck` parse it.
+      - `shellcheck bin/devstrap install.sh tests/*.bats`
+      - `bats tests/`
       All three need only `nix develop`'s dev shell, so CI can run them
       inside `nix develop --command bash -c '...'`.
 
@@ -115,25 +127,6 @@ conflicts up front, then only creates/writes the requested generated files.
 
 ## Worth doing when next touching that code
 
-- [ ] **Preflight `~/bin/devstrap` before linking.** `ln -sfn`
-      (`install.sh:30`) unlinks an unrelated regular file or symlink at the
-      destination; and if the destination is a real directory it silently
-      links *inside* it as `~/bin/devstrap/devstrap`, producing a broken
-      install. Link when the path is absent or already points at
-      `$DEST_DIR/bin/devstrap`; otherwise fail closed. Low impact — that path
-      is specific to this tool — but cheap.
-
-- [ ] **Give `install.sh` test coverage**, as part of the two installer items
-      above rather than as separate work: clean install into a new/empty
-      destination, update over a recognized existing install with
-      confirmation, declined prompt, symlinked `DEST_DIR` rejected,
-      unnormalized `DEST_DIR` (`//`, a trailing slash) resolved before any
-      removal, a `DEST_DIR` holding unrecognized contents failing closed
-      instead of being cleared, unexpected `~/bin/devstrap`, and no mutation
-      on failure. Keep the `DEST_DIR`/`BIN_DIR` env overrides — they're what
-      lets a test point the installer at a temp directory instead of a real
-      `$HOME`.
-
 - [ ] **Validate `PROJECT_NAME`.** `basename "$PROJECT_DIR"` is substituted
       into `devcontainer.json` by `sed`. The current escaping is correct for
       `sed` but isn't JSON escaping, so a `"` in the directory name yields
@@ -143,14 +136,6 @@ conflicts up front, then only creates/writes the requested generated files.
       like `[A-Za-z0-9._-]+` in the existing pre-write validation phase so
       failure precedes any write. Needs a deliberately odd directory name to
       trigger; correctness more than safety.
-
-- [ ] **Validate installer source inputs before replacing an existing install.**
-      `install.sh` currently removes the installed `bin/` and `templates/`
-      before copying their replacements. Check that the source checkout has
-      the expected runtime/template directories and entrypoint before the
-      confirmation/removal phase, so a partial or stale checkout cannot remove
-      a working install and then fail during `cp`. This is primarily
-      availability/robustness, not arbitrary host-data loss.
 
 - [ ] **Verify fresh Claude-volume ownership and persistence in a real built
       container.** On a brand-new project/volume, confirm `vscode` can write
@@ -172,3 +157,8 @@ conflicts up front, then only creates/writes the requested generated files.
 - [ ] Replace the manual `mktemp -d` + `rm -rf` in `tests/devstrap.bats` with
       bats' own `BATS_TEST_TMPDIR`, created and cleaned up per test. Safe as
       written; this just removes a destructive line from the repo.
+      `tests/install.bats` already uses that pattern and needs no `teardown()`,
+      so it is the reference. Minor supporting evidence: an interrupted run
+      left an orphaned `mktemp -d` directory under `$TMPDIR` (observed
+      2026-08-16, dated 2026-08-08) because `teardown()` never fired; bats'
+      own directory is at least grouped under one removable run tree.

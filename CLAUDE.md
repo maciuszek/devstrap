@@ -15,19 +15,25 @@ Run the test suite (`bats`, available via `flake.nix`'s dev shell):
 
 ```bash
 nix develop   # enters a shell with bats, shellcheck, unzip, zip
-bats tests/devstrap.bats
+bats tests/
 ```
 
-Each `@test` in `tests/devstrap.bats` gets its own `mktemp -d` project
-directory via `setup()`/`teardown()`, and exercises `bin/devstrap` end-to-end
-by asserting on created files and conflict-detection behavior. Add new
-scenarios as new `@test` blocks in that file.
+Two suites, split by the script under test — add new scenarios as `@test`
+blocks in the matching one:
+
+- `tests/devstrap.bats` — exercises `bin/devstrap` end-to-end, asserting on
+  created files and conflict-detection behavior. Each `@test` gets its own
+  `mktemp -d` project directory via `setup()`/`teardown()`.
+- `tests/install.bats` — exercises `install.sh` end-to-end in both modes, with
+  `DEST_DIR`/`BIN_DIR` pointed inside bats' per-test `BATS_TEST_TMPDIR` (so no
+  cleanup of its own) and the installer's prompts answered from a here-string
+  via the `installer` helper. Real `$HOME` is never touched.
 
 Lint shell scripts with `shellcheck` (it understands `.bats` syntax natively
 since v0.7.0, no preprocessing needed):
 
 ```bash
-shellcheck bin/devstrap install.sh tests/devstrap.bats
+shellcheck bin/devstrap install.sh tests/*.bats
 ```
 
 Try the CLI locally without installing:
@@ -39,16 +45,17 @@ bin/devstrap --container claude --shell nix --project-dir /tmp/some-dir
 Install it onto PATH:
 
 ```bash
-./install.sh   # copies bin/ and templates/ to ~/.local/share/devstrap, symlinks ~/bin/devstrap
+./install.sh               # links ~/bin/devstrap at this checkout (default)
+./install.sh --standalone  # copies bin/ and templates/ to ~/.local/share/devstrap instead
 ```
 
 ## Architecture
 
 - **`bin/devstrap`** — the entire CLI logic in one script. Flow: parse flags →
   resolve the real script location (following symlinks, since the installed
-  binary is a symlink into `~/.local/share/devstrap`) → validate requested
-  template inputs and component conflicts *before* writing anything → write
-  files.
+  binary is a symlink into either a checkout or `~/.local/share/devstrap`) →
+  validate requested template inputs and component conflicts *before* writing
+  anything → write files.
   There is no `--force`; conflicts abort with a grouped report and zero
   filesystem changes (all-or-nothing across both components).
 - **`templates/`** — the source of truth for generated file content, mirrored
@@ -64,12 +71,27 @@ Install it onto PATH:
     verbatim per the chosen `--shell` name, no substitution. `nix` is a
     generic starter (`nixfmt`, `shellcheck`); `bash` is curated for
     bash-script-heavy projects (`shellcheck`, `bats`).
-- **`install.sh`** — copies `bin/` and `templates/` into
-  `~/.local/share/devstrap` and symlinks `~/bin/devstrap` to the installed
-  runtime. Refuses a non-absolute or `/` `DEST_DIR` before it ever runs `rm
-  -rf`, and prompts for confirmation before replacing an existing install.
-  This repo's own `bin/devstrap` resolves symlinks precisely so this install
-  layout works (runtime and templates must stay siblings).
+- **`install.sh`** — two modes, both ending in the same `~/bin/devstrap`
+  symlink and both requiring a complete checkout (`bin/devstrap` executable,
+  `templates/` present), checked before anything is written:
+  - default (`--link`) — symlinks `~/bin/devstrap` at *this checkout's*
+    `bin/devstrap`. Nothing is copied or removed, and template edits are live,
+    so this is the development install and the documented default. The
+    checkout becomes load-bearing. If a `--standalone` runtime is still
+    present, it reports it as now-unused and leaves it in place.
+  - `--standalone` — the previous behavior: copies `bin/` and `templates/`
+    into `~/.local/share/devstrap` and links there, so the install survives the
+    checkout being moved or deleted, at the cost of needing a re-run to pick up
+    changes. Refuses a non-absolute or `/` `DEST_DIR` before it ever runs `rm
+    -rf`, and prompts for confirmation before replacing an existing install.
+
+  `preflight_link` gates the symlink for both modes and `write_link` is its
+  sole writer: it fails closed on a real directory at that path and prompts
+  before repointing an existing link or replacing a file. The gate runs before
+  the mode's first filesystem change, so declining any prompt leaves both the
+  symlink and any existing install untouched. This repo's own `bin/devstrap`
+  resolves symlinks precisely so both layouts work (runtime and templates must
+  stay siblings).
 - **`.devcontainer/`, `flake.nix`** at the repo root — devstrap dogfoods its
   own `claude` container template and `nix` shell template for its own
   development.

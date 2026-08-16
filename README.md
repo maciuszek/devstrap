@@ -159,12 +159,27 @@ nix develop
 
 ## Install
 
-The default installer makes the command available as `~/bin/devstrap` while
-keeping its templates under `~/.local/share/devstrap`:
+Both installer modes make the command available as `~/bin/devstrap`. The
+default links it at your checkout:
 
 ```bash
 ./install.sh
 ```
+
+Templates are then read from the checkout, so edits to it — including new
+templates — take effect on the next run without reinstalling. The trade is that
+the checkout has to stay put; moving or deleting it breaks the command.
+
+For an install that doesn't depend on the checkout, copy the runtime into
+`~/.local/share/devstrap` instead:
+
+```bash
+./install.sh --standalone
+```
+
+That one is a snapshot: re-run it to pick up later changes. Either mode asks
+before replacing an existing `~/bin/devstrap` or an existing standalone
+runtime, and both print how to uninstall.
 
 See [`docs/NIXOS_INSTALL.md`](docs/NIXOS_INSTALL.md) for declarative PATH setup.
 
@@ -173,6 +188,28 @@ See [`docs/NIXOS_INSTALL.md`](docs/NIXOS_INSTALL.md) for declarative PATH setup.
 This repository itself contains `.devcontainer/` and `flake.nix`, so development
 of devstrap can use the same Claude-isolated container + Nix-shell model that it
 generates for other projects.
+
+## Development
+
+The test suite and linter come from this repository's own Nix dev shell:
+
+```bash
+nix develop        # bats, shellcheck, unzip, zip
+bats tests/
+shellcheck bin/devstrap install.sh tests/*.bats
+```
+
+Or without entering the shell:
+
+```bash
+nix develop --command bats tests/
+```
+
+`tests/devstrap.bats` covers `bin/devstrap` and `tests/install.bats` covers
+`install.sh`, both end to end. The suite is self-contained: every generated
+project goes into a temporary directory, and the installer tests point
+`DEST_DIR` and `BIN_DIR` at temporary directories too, so running them never
+writes to `~/bin`, `~/.local/share/devstrap`, or anywhere else in `$HOME`.
 
 ## Scope
 
@@ -184,4 +221,7 @@ The initial version deliberately stays small:
 - no overwrite/merge behavior
 
 Additional templates should be added when a real project needs them rather than
-pre-building a large framework.
+pre-building a large framework. Under the default install a new template is
+usable as soon as it exists in the checkout, so adding one is just a matter of
+creating `templates/container/<name>/` or `templates/shell/<name>/` and
+teaching `bin/devstrap` to accept the name.
